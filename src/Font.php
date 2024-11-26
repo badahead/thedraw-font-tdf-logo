@@ -77,28 +77,24 @@ namespace Badahead\TheDraw\Font {
                             $oldColConv = "\x1b[0m";
                             $result     .= $oldColConv;
                         }
+                        elseif ($this->matrix[$i][$n] === "\r") {
+                            if ($this->headers[$fontId]->fontType === FontHeader::FONT_TYPE_COLOR && ($newColConv[2] != 4 || $newColConv[3] != 0)) {
+                                if ($oldColConv[2] != 0 && $oldColConv[3] !== "m") {
+                                    $oldColConv = "\x1b[0m";
+                                    $result     .= $oldColConv;
+                                }
+                            }
+                            $result .= " ";
+                        }
                         else {
-                            if ($this->matrix[$i][$n] === "\r") {
-                                if ($this->headers[$fontId]->fontType === FontHeader::FONT_TYPE_COLOR) {
-                                    if ($newColConv[2] != 4 || $newColConv[3] != 0) {
-                                        if ($oldColConv[2] != 0 && $oldColConv[3] != "m") {
-                                            $oldColConv = "\x1b[0m";
-                                            $result     .= $oldColConv;
-                                        }
-                                    }
+                            if ($this->headers[$fontId]->fontType === FontHeader::FONT_TYPE_COLOR) {
+                                $newColConv = $this->colconv($i, $n);
+                                if ($newColConv !== $oldColConv) {
+                                    $result     .= $newColConv;
+                                    $oldColConv = $newColConv;
                                 }
-                                $result .= " ";
                             }
-                            else {
-                                if ($this->headers[$fontId]->fontType === FontHeader::FONT_TYPE_COLOR) {
-                                    $newColConv = $this->colconv($i, $n);
-                                    if ($newColConv != $oldColConv) {
-                                        $result     .= $newColConv;
-                                        $oldColConv = $newColConv;
-                                    }
-                                }
-                                $result .= iconv('IBM437', 'UTF8', $this->matrix[$i][$n]);
-                            }
+                            $result .= iconv('IBM437', 'UTF8', (string)$this->matrix[$i][$n]);
                         }
                     }
                     $oldColConv = "\x1b[0m";
