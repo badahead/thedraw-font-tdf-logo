@@ -23,15 +23,7 @@
     "ext-iconv": "*"
   },
   "require-dev": {
-    "ergebnis/phpstan-rules": "@stable",
-    "phpstan/phpstan": "@stable",
-    "phpstan/phpstan-deprecation-rules": "@stable",
-    "phpstan/phpstan-strict-rules": "@stable",
-    "rector/rector": "@stable",
-    "vimeo/psalm": "@stable"
-  },
-  "scripts": {
-    "psalm:run": "psalm"
+    "rector/rector": "@stable"
   },
   "authors": [
     {
