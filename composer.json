@@ -1,0 +1,47 @@
+{
+  "name": "badeahd/thedraw-font-tdf-logo",
+  "description": "TheDraw Font (.TDF) Logo Maker",
+  "type": "library",
+  "minimum-stability": "stable",
+  "prefer-stable": true,
+  "config": {
+    "platform": {
+      "php": "8.3"
+    },
+    "optimize-autoloader": true,
+    "classmap-authoritative": true,
+    "apcu-autoloader": true,
+    "sort-packages": true,
+    "allow-plugins": {
+      "phpstan/extension-installer": true,
+      "php-http/discovery": true
+    }
+  },
+  "license": "proprietary",
+  "require": {
+    "php": ">=8.3",
+    "ext-iconv": "*"
+  },
+  "require-dev": {
+    "ergebnis/phpstan-rules": "@stable",
+    "phpstan/phpstan": "@stable",
+    "phpstan/phpstan-deprecation-rules": "@stable",
+    "phpstan/phpstan-strict-rules": "@stable",
+    "rector/rector": "@stable",
+    "vimeo/psalm": "@stable"
+  },
+  "scripts": {
+    "psalm:run": "psalm"
+  },
+  "authors": [
+    {
+      "name": "badahead",
+      "email": "badahead@protonmail.com"
+    }
+  ],
+  "autoload": {
+    "psr-4": {
+      "Badahead\\TheDraw\\Font\\": "src/"
+    }
+  }
+}
