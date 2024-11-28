@@ -1,7 +1,7 @@
 <?php
 declare(strict_types=1);
 
-use Badahead\TheDraw\Font\Render;
+use Badahead\TheDraw\Font\Font;
 
 require_once __DIR__ . '/vendor/autoload.php';
-echo Render::render('Hello World', __DIR__ . '/tdf/3D-ASCII.TDF', 0, 2, 5);
+echo Font::render(text: 'HELLO WORLD', filename: __DIR__ . '/tdf/ROYFNT1.TDF', fontId: 0, letterSpacing: 1);

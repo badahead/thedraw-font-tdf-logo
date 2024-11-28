@@ -4,6 +4,7 @@ declare(strict_types=1);
 namespace Badahead\TheDraw\Font {
 
     use Exception;
+    use function array_key_last;
     use function file_exists;
     use function file_get_contents;
     use function hexdec;
@@ -15,9 +16,10 @@ namespace Badahead\TheDraw\Font {
 
     class Font
     {
-        private string $signature = '';
-        private int    $filesize  = 0;
-        /* @var FontHeader $headers */
+        private static array $fonts     = [];
+        private string       $signature = '';
+        private int          $filesize  = 0;
+        /* @var FontHeader[] $headers */
         private array $headers          = [];
         private array $data             = [];
         private array $matrixForeground = [];
@@ -29,30 +31,43 @@ namespace Badahead\TheDraw\Font {
         private int   $charPosX;
         private array $matrix;
 
-        public function __construct(private readonly string $filename, private readonly int $spacing = 2, private readonly int $spaceSize = 5) {
+        /**
+         * @param string $filename The file to be processed.
+         * @param int $letterSpacing The letterSpacing to be used (default is 2).
+         * @param int $realSpaceSize The size of the space to be used (default is 5).
+         *
+         * @return void
+         * @throws Exception If the font file does not exist.
+         */
+        public function __construct(private readonly string $filename, private readonly int $letterSpacing = 2, private readonly int $realSpaceSize = 5) {
             if (file_exists($this->filename)) {
                 $binString      = file_get_contents($this->filename);
                 $this->filesize = strlen($binString);
-                $this->parse($binString);
+                $this->parse(binString: $binString);
             }
             else {
                 throw new Exception("Font file does not exist");
             }
         }
 
+        /**
+         * Parses the binary string to extract font headers and data.
+         *
+         * @param string $binString The binary string containing font data to be parsed.
+         *
+         * @return void
+         */
         private function parse(string $binString): void {
             $this->signature = substr($binString, 1, 18);
             $offset          = 0;
             $fontId          = 0;
             while ($offset + 20 < $this->filesize) {
-                $this->headers[$fontId] = new FontHeader();
-                $this->headers[$fontId]->setFontName(substr($binString, $offset + 25, 12));
-                $this->headers[$fontId]->setFontType(ord(substr($binString, $offset + 41, 1)));
-                $this->headers[$fontId]->setLetterSpacing(ord(substr($binString, $offset + 42, 1)));
-                $this->headers[$fontId]->setBlockSize((int)hexdec(sprintf('%02X', ord(substr($binString, $offset + 44, 1))) . sprintf('%02X', ord(substr($binString, $offset + 43, 1)))));
+                $this->headers[$fontId] = new FontHeader(fontName: substr($binString, $offset + 25, 12));
+                $this->headers[$fontId]->setFontType(fontType: ord(substr($binString, $offset + 41, 1)));
+                $this->headers[$fontId]->setBlockSize(blockSize: (int)hexdec(sprintf('%02X', ord(substr($binString, $offset + 44, 1))) . sprintf('%02X', ord(substr($binString, $offset + 43, 1)))));
                 $n = 0;
                 for ($i = 0; $i < 94; $i++) {
-                    $this->headers[$fontId]->setLettersOffsets($i, hexdec(sprintf('%02X', ord(substr($binString, $offset + 45 + $n + 1, 1))) . sprintf('%02X', ord(substr($binString, $offset + 45 + $n, 1)))));
+                    $this->headers[$fontId]->setLettersOffsets(key: $i, offset: hexdec(sprintf('%02X', ord(substr($binString, $offset + 45 + $n + 1, 1))) . sprintf('%02X', ord(substr($binString, $offset + 45 + $n, 1)))));
                     $n += 2;
                 }
                 $this->data[$fontId] = substr($binString, $offset + 233, $this->headers[$fontId]->blockSize);
@@ -61,12 +76,33 @@ namespace Badahead\TheDraw\Font {
             }
         }
 
-        final public function getSignature(): string {
-            return $this->signature;
+        /**
+         * Renders text using specified font settings.
+         *
+         * @param string $text The text to be rendered.
+         * @param string $filename The filename of the font to be used.
+         * @param int $fontId The font identifier. Default is 0.
+         * @param int $letterSpacing The letterSpacing between characters. Default is 2.
+         * @param int $realSpaceSize The size of the space character. Default is 5.
+         * @return string The rendered text.
+         */
+        public static function render(string $text, string $filename, int $fontId = 0, int $letterSpacing = 2, int $realSpaceSize = 5): string {
+            $index = str_replace('/', '', $filename . '-' . $letterSpacing . '-' . $realSpaceSize);
+            if (!isset(self::$fonts[$index])) {
+                self::$fonts[$index] = new self(filename: $filename, letterSpacing: $letterSpacing, realSpaceSize: $realSpaceSize);
+            }
+            return self::$fonts[$index]->textRender(text: $text, fontId: $fontId);
         }
 
-        final public function render(string $text, int $fontId = 0): string {
-            $this->text_renderer($text, $fontId);
+        /**
+         * Renders the given text with the specified font ID.
+         *
+         * @param string $text The text to be rendered.
+         * @param int $fontId The ID of the font to render the text with. Defaults to 0 (first font inside a set).
+         * @return string The rendered text.
+         */
+        private function textRender(string $text, int $fontId = 0): string {
+            $this->textRenderPrepare(text: $text, fontId: $fontId);
             $result     = '';
             $newColConv = '';
             $oldColConv = '';
@@ -79,16 +115,16 @@ namespace Badahead\TheDraw\Font {
                         }
                         elseif ($this->matrix[$i][$n] === "\r") {
                             if ($this->headers[$fontId]->fontType === FontHeader::FONT_TYPE_COLOR && ($newColConv[2] != 4 || $newColConv[3] != 0)) {
-                                if ($oldColConv[2] != 0 && $oldColConv[3] !== "m") {
+                                if ($oldColConv[2] != 0 && $oldColConv[3] !== 'm') {
                                     $oldColConv = "\x1b[0m";
                                     $result     .= $oldColConv;
                                 }
                             }
-                            $result .= " ";
+                            $result .= ' ';
                         }
                         else {
                             if ($this->headers[$fontId]->fontType === FontHeader::FONT_TYPE_COLOR) {
-                                $newColConv = $this->colconv($i, $n);
+                                $newColConv = $this->colConv(var1: $i, var2: $n);
                                 if ($newColConv !== $oldColConv) {
                                     $result     .= $newColConv;
                                     $oldColConv = $newColConv;
@@ -104,7 +140,15 @@ namespace Badahead\TheDraw\Font {
             return $result;
         }
 
-        private function text_renderer(string $text, int $fontId = 0): void {
+        /**
+         * Performs the rendering of text using the specified font ID and sets up internal structures.
+         *
+         * @param string $text The text to be rendered.
+         * @param int $fontId The ID of the font to render the text with. Defaults to 0 (first font inside a set).
+         * @return void
+         * @throws Exception If the specified font does not exist in the font file.
+         */
+        private function textRenderPrepare(string $text, int $fontId = 0): void {
             if (!isset($this->headers[$fontId]) || !isset($this->data[$fontId])) {
                 throw new Exception("Font does not exist in font file");
             }
@@ -122,32 +166,32 @@ namespace Badahead\TheDraw\Font {
             if ($this->headers[$fontId]->fontType === FontHeader::FONT_TYPE_COLOR) {
                 for ($i = 0; $i < strlen($text); $i++) {
                     if ((ord($text[$i]) >= 33) && (ord($text[$i]) < 126)) {
-                        $offset = $this->headers[$fontId]->lettersoffsets[ord($text[$i]) - 33];
+                        $offset = $this->headers[$fontId]->lettersOffsets[ord($text[$i]) - 33];
                         if ($offset != 65535) {
-                            $maxcharwidth = ord($this->data[$fontId][$offset]);
+                            $maxCharWidth = ord($this->data[$fontId][$offset]);
                             $n            = 2;
-                            $OLDPOSX      = $this->posX;
+                            $oldPosX      = $this->posX;
                             do {
                                 $char = $this->data[$fontId][$offset + $n];
                                 if ($char == "\r") {
                                     $n--;
-                                    $this->_PRINTCHAR($char);
+                                    $this->printChar(char: $char);
                                 }
                                 elseif ($char !== "\0") {
                                     $col                 = ord($this->data[$fontId][$offset + $n + 1]);
                                     $this->colBackground = (int)floor($col / 16);
                                     $this->colForeground = $col % 16;
-                                    $this->_PRINTCHAR($char);
+                                    $this->printChar(char: $char);
                                 }
                                 $n += 2;
                             } while ($char !== "\0");
                             $this->posY     = 1;
-                            $this->posX     = $OLDPOSX + $maxcharwidth + $this->spacing;
+                            $this->posX     = $oldPosX + $maxCharWidth + $this->letterSpacing;
                             $this->charPosX = $this->posX;
                         }
                     }
                     elseif (ord($text[$i]) == 32) {
-                        $this->posX     += $this->spaceSize;
+                        $this->posX     += $this->realSpaceSize;
                         $this->charPosX = $this->posX;
                     }
                 }
@@ -157,32 +201,38 @@ namespace Badahead\TheDraw\Font {
                 $this->colBackground = 0;
                 for ($i = 0; $i < strlen($text); $i++) {
                     if ((ord($text[$i]) >= 33) && (ord($text[$i]) < 126)) {
-                        $offset = $this->headers[$fontId]->lettersoffsets[ord($text[$i]) - 33];
+                        $offset = $this->headers[$fontId]->lettersOffsets[ord($text[$i]) - 33];
                         if ($offset != 65535) {
-                            $maxcharwidth = ord($this->data[$fontId][$offset]);
+                            $maxCharWidth = ord($this->data[$fontId][$offset]);
                             $n            = 2;
-                            $OLDPOSX      = $this->posX;
+                            $oldPosX      = $this->posX;
                             do {
                                 $char = $this->data[$fontId][$offset + $n];
                                 if ($char !== "\0") {
-                                    $this->_PRINTCHAR($char);
+                                    $this->printChar(char: $char);
                                 }
                                 $n++;
                             } while ($char !== "\0");
                             $this->posY     = 1;
-                            $this->posX     = $OLDPOSX + $maxcharwidth + $this->spacing;
+                            $this->posX     = $oldPosX + $maxCharWidth + $this->letterSpacing;
                             $this->charPosX = $this->posX;
                         }
                     }
                     elseif (ord($text[$i]) === 32) {
-                        $this->posX     += $this->spaceSize;
+                        $this->posX     += $this->realSpaceSize;
                         $this->charPosX = $this->posX;
                     }
                 }
             }
         }
 
-        private function _PRINTCHAR(mixed $char): void {
+        /**
+         * Prints the specified character at the current cursor position.
+         *
+         * @param mixed $char The character to be printed.
+         * @return void
+         */
+        private function printChar(mixed $char): void {
             $this->matrix[$this->posY - 1][$this->posX - 1]           = $char;
             $this->matrixBackground[$this->posY - 1][$this->posX - 1] = $this->colBackground;
             $this->matrixForeground[$this->posY - 1][$this->posX - 1] = $this->colForeground;
@@ -195,7 +245,14 @@ namespace Badahead\TheDraw\Font {
             }
         }
 
-        private function colconv(int $var1, int $var2): string {
+        /**
+         * Converts the given matrix coordinates into corresponding ANSI color codes.
+         *
+         * @param int $var1 The row index in the matrix.
+         * @param int $var2 The column index in the matrix.
+         * @return string The ANSI color code sequence for the specified matrix cell.
+         */
+        private function colConv(int $var1, int $var2): string {
             $col1 = match ($this->matrixForeground[$var1][$var2]) {
                 0  => 30,
                 1  => 34,
@@ -225,6 +282,15 @@ namespace Badahead\TheDraw\Font {
                 7 => 47,
             };
             return "\x1b[{$col2};{$col1}m";
+        }
+
+        /**
+         * Retrieves the signature of the font file.
+         *
+         * @return string The signature of the font file.
+         */
+        private function getSignature(): string {
+            return $this->signature;
         }
     }
 }
