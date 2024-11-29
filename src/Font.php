@@ -112,7 +112,7 @@ namespace Badahead\TheDraw\Font {
                     for ($n = 0; $n <= array_key_last($this->matrix[$i]); $n++) {
                         if (!isset($this->matrix[$i][$n])) {
                             $oldColConv = "\x1b[0m";
-                            $result     .= $oldColConv;
+                            $result     .= $oldColConv . ' ';
                         }
                         elseif ($this->matrix[$i][$n] === "\r") {
                             if ($this->headers[$fontId]->fontType === FontHeader::FONT_TYPE_COLOR && ($newColConv[2] != 4 || $newColConv[3] != 0)) {
