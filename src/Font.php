@@ -16,9 +16,8 @@ namespace Badahead\TheDraw\Font {
 
     class Font
     {
-        private static array $fonts     = [];
-        private string       $signature = '';
-        private int          $filesize  = 0;
+        private static array $fonts    = [];
+        private int          $filesize = 0;
         /* @var FontHeader[] $headers */
         private array $headers          = [];
         private array $data             = [];
@@ -39,7 +38,7 @@ namespace Badahead\TheDraw\Font {
          * @return void
          * @throws Exception If the font file does not exist.
          */
-        public function __construct(private readonly string $filename, private readonly int $letterSpacing = 2, private readonly int $realSpaceSize = 5) {
+        public function __construct(private readonly string $filename, private readonly int $letterSpacing = 2, private readonly int $realSpaceSize = 5, private readonly bool $convertToUtf8 = false) {
             if (file_exists($this->filename)) {
                 $binString      = file_get_contents($this->filename);
                 $this->filesize = strlen($binString);
@@ -56,11 +55,11 @@ namespace Badahead\TheDraw\Font {
          * @param string $binString The binary string containing font data to be parsed.
          *
          * @return void
+         * @throws Exception
          */
         private function parse(string $binString): void {
-            $this->signature = substr($binString, 1, 18);
-            $offset          = 0;
-            $fontId          = 0;
+            $offset = 0;
+            $fontId = 0;
             while ($offset + 20 < $this->filesize) {
                 $this->headers[$fontId] = new FontHeader(fontName: substr($binString, $offset + 25, 12));
                 $this->headers[$fontId]->setFontType(fontType: ord(substr($binString, $offset + 41, 1)));
@@ -85,11 +84,12 @@ namespace Badahead\TheDraw\Font {
          * @param int $letterSpacing The letterSpacing between characters. Default is 2.
          * @param int $realSpaceSize The size of the space character. Default is 5.
          * @return string The rendered text.
+         * @throws Exception
          */
-        public static function render(string $text, string $filename, int $fontId = 0, int $letterSpacing = 2, int $realSpaceSize = 5): string {
+        public static function render(string $text, string $filename, int $fontId = 0, int $letterSpacing = 2, int $realSpaceSize = 5, bool $convertToUtf8 = false): string {
             $index = str_replace('/', '', $filename . '-' . $letterSpacing . '-' . $realSpaceSize);
             if (!isset(self::$fonts[$index])) {
-                self::$fonts[$index] = new self(filename: $filename, letterSpacing: $letterSpacing, realSpaceSize: $realSpaceSize);
+                self::$fonts[$index] = new self(filename: $filename, letterSpacing: $letterSpacing, realSpaceSize: $realSpaceSize, convertToUtf8: $convertToUtf8);
             }
             return self::$fonts[$index]->textRender(text: $text, fontId: $fontId);
         }
@@ -100,6 +100,7 @@ namespace Badahead\TheDraw\Font {
          * @param string $text The text to be rendered.
          * @param int $fontId The ID of the font to render the text with. Defaults to 0 (first font inside a set).
          * @return string The rendered text.
+         * @throws Exception
          */
         private function textRender(string $text, int $fontId = 0): string {
             $this->textRenderPrepare(text: $text, fontId: $fontId);
@@ -130,7 +131,12 @@ namespace Badahead\TheDraw\Font {
                                     $oldColConv = $newColConv;
                                 }
                             }
-                            $result .= iconv('IBM437', 'UTF8', (string)$this->matrix[$i][$n]);
+                            if ($this->convertToUtf8) {
+                                $result .= iconv('IBM437', 'UTF8', (string)$this->matrix[$i][$n]);
+                            }
+                            else {
+                                $result .= $this->matrix[$i][$n];
+                            }
                         }
                     }
                     $oldColConv = "\x1b[0m";
@@ -282,15 +288,6 @@ namespace Badahead\TheDraw\Font {
                 7 => 47,
             };
             return "\x1b[{$col2};{$col1}m";
-        }
-
-        /**
-         * Retrieves the signature of the font file.
-         *
-         * @return string The signature of the font file.
-         */
-        private function getSignature(): string {
-            return $this->signature;
         }
     }
 }
